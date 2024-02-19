@@ -108,11 +108,17 @@ def entrenar_modelo():
 # Función para realizar la predicción
 def hacer_prediccion():
     #global prediccion  # Access the global variable
+    cap = cv2.VideoCapture(2)  # Abre la cámara
+    ret, frame = cap.read()  # Captura un fotograma
+    if ret:
+        cv2.imwrite('webcam/image.png', frame)  # Guarda la imagen capturada
+        cap.release()  # Libera la cámara
+        cv2.destroyAllWindows()  # Cierra todas las ventanas abiertas por OpenCV
 
     # Abrir ventana de selección de archivo
     root = tk.Tk()
     root.withdraw()
-    file_path = filedialog.askopenfilename()
+    file_path = 'webcam/image.png'
 
     # Cargar imagen y redimensionar
     img = cv2.imread(file_path)
@@ -180,7 +186,19 @@ btn_entrenar.pack()
 btn_prediccion = tk.Button(window, text="Hacer predicción", command=hacer_prediccion)
 btn_prediccion.pack()
 
-# btn_clear = tk.Button(window, text="Limpiar", command=lambda: label_prediccion.pack_forget())
-# btn_clear.pack()
+# def capture_image():
+#     cap = cv2.VideoCapture(2)  # Abre la cámara
+#     ret, frame = cap.read()  # Captura un fotograma
+#     if ret:
+#         cv2.imwrite('webcam/image.png', frame)  # Guarda la imagen capturada
+#         cap.release()  # Libera la cámara
+#         cv2.destroyAllWindows()  # Cierra todas las ventanas abiertas por OpenCV
+
+
+# btn_captura = tk.Button(window, text="Tomar foto", command=lambda: capture_image())
+# btn_captura.pack()
 
 window.mainloop()
+
+
+
