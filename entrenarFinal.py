@@ -7,7 +7,9 @@ import cv2
 import numpy as np
 import tkinter as tk
 from tkinter import filedialog
+import pandas as pd
 import matplotlib.pyplot as plt
+
 # Función para cargar imágenes y etiquetas desde una carpeta
 def cargar_datos(ruta):
     datos = []
@@ -29,8 +31,8 @@ def cargar_datos(ruta):
     return np.array(datos), np.array(etiquetas)
 
 # Directorio de las carpetas de imágenes
-ruta_principal = '/home/akizuki/Documents/IoT/img_guardadas' # Reemplazar con tu ruta
-carpetas = ['cebolla', 'chile', 'tomate']
+ruta_principal = '/home/akizuki/Documents/IoT/Verduras_new' # Reemplazar con tu ruta
+carpetas = ['Cebolla','Chile', 'Tomate']
 
 for carpeta in carpetas:
   archivos = os.path.join(ruta_principal, carpeta)
@@ -86,7 +88,7 @@ etiquetas_entrenamiento = labels
 datos_entrenamiento = datos_entrenamiento / 255.0
 
 # Convertir las etiquetas de cadena a valores numéricos
-label_dict = {'cebolla': 0, 'chile': 1, 'tomate': 2}
+label_dict = {'Cebolla': 0, 'Chile': 1, 'Tomate': 2}
 etiquetas_entrenamiento = np.array([label_dict[label] for label in etiquetas_entrenamiento])
 
 # Crear el modelo
@@ -105,80 +107,102 @@ def entrenar_modelo():
     train = model.fit(datos_entrenamiento, etiquetas_entrenamiento, epochs=100, batch_size=32)  # Ajustar epochs y batch_size según sea necesario
 
 
-# Función para realizar la predicción
+# Función para realizar la predicción y guardar los resultados en un archivo Excel
 def hacer_prediccion():
-    #global prediccion  # Access the global variable
-    cap = cv2.VideoCapture(2)  # Abre la cámara
-    ret, frame = cap.read()  # Captura un fotograma
-    if ret:
-        cv2.imwrite('webcam/image.png', frame)  # Guarda la imagen capturada
-        cap.release()  # Libera la cámara
-        cv2.destroyAllWindows()  # Cierra todas las ventanas abiertas por OpenCV
 
-    # Abrir ventana de selección de archivo
+    # Abrir ventana de selección de carpeta
     root = tk.Tk()
     root.withdraw()
-    file_path = 'webcam/image.png'
+    folder_path = filedialog.askdirectory()
 
-    # Cargar imagen y redimensionar
-    img = cv2.imread(file_path)
-    img_resize = cv2.resize(img, (img_size, img_size))
+    # Obtener la lista de imágenes en la carpeta seleccionada
+    image_files = [f for f in os.listdir(folder_path) if f.endswith(".jpg")]
 
-    # Preprocesar imagen
-    img_preprocessed = img_resize / 255.0
-    
-    # Realizar predicción
-    prediccion = model.predict(np.array([img_preprocessed]))
+    # Inicializar el diccionario para almacenar los resultados de la predicción
+    prediction_results = {}
 
-    # # Para cada sublista en la lista
-    # for sublst in prediccion:
-    #     # Encuentra el valor máximo en la sublista
-    #     max_val = max(sublst)
+    # Realizar la predicción para cada imagen en la carpeta
+    for image_file in image_files:
+        # Obtener la ruta completa de la imagen
+        image_path = os.path.join(folder_path, image_file)
 
-    #     # Recorre la sublista y cambia el valor máximo por 1 y todos los demás valores por 0
-    #     for i in range(len(sublst)):
-            
-    #         sublst[i] = 1 if sublst[i] == max_val else 0
-    
-    sublst = prediccion[0]
+        # Cargar imagen y redimensionar
+        img = cv2.imread(image_path)
+        img_resize = cv2.resize(img, (img_size, img_size))
 
-    # Encuentra el valor máximo en la sublista
-    max_val = max(sublst)
+        # Preprocesar imagen
+        img_preprocessed = img_resize / 255.0
 
-    # Recorre la sublista y cambia el valor máximo por 1 y todos los demás valores por 0
-    for i in range(len(sublst)):
-        if sublst[i] == max_val:
-            sublst[i] = 1
-            if i == 0:
-                label_prediccion = tk.Label(window, text="Cebolla")
-                label_prediccion.pack()
-                
-                print("cebolla")
-            elif i == 1:
-                label_prediccion = tk.Label(window, text="Chile")
-                label_prediccion.pack()
-                
+        # Realizar predicción
+        prediction = model.predict(np.array([img_preprocessed]))
 
-                print("chile")
-            elif i == 2:
-                label_prediccion = tk.Label(window, text="Tomate")
-                label_prediccion.pack()
+        # Obtener el índice de la clase con mayor probabilidad
+        predicted_class_index = np.argmax(prediction)
 
-                print("tomate")
-        else:
-            sublst[i] = 0
+        # Obtener el nombre de la clase correspondiente al índice
+        predicted_class = list(label_dict.keys())[list(label_dict.values()).index(predicted_class_index)]
 
+        # Obtener el porcentaje de precisión de la predicción
+        prediction_accuracy = round(np.max(prediction) * 100, 2)
 
-    # # Mostrar la predicción en la ventana
-    label_prediccion = tk.Label(window, text="Predicción: " + str(prediccion))
-    label_prediccion.pack()
+        # Agregar el resultado de la predicción al diccionario
+        prediction_results[image_file] = (predicted_class, prediction_accuracy)
 
-    print('Predicción:', prediccion)
+    # Crear un DataFrame con los resultados de la predicción
+    df = pd.DataFrame.from_dict(prediction_results, orient='index', columns=['Clase', 'Precisión'])
+
+    # Obtener la ruta de guardado del archivo Excel
+    save_path = filedialog.asksaveasfilename(defaultextension='.xlsx')
+
+    # Guardar el DataFrame como archivo Excel
+    df.to_excel(save_path, index_label='Imagen')
+
+    # Mostrar mensaje de éxito
+    # messagebox.showinfo('Predicción guardada', 'Los resultados de la predicción se han guardado exitosamente en un archivo Excel.')
+
+    # Crear ventana de resultados de la predicción
+    result_window = tk.Tk()
+    result_window.title("Resultados de la predicción")
+    result_window.geometry("500x500")
+
+    # Crear un frame con un scrollbar
+    frame = tk.Frame(result_window)
+    frame.pack(fill="both", expand=True)
+
+    # Crear un canvas dentro del frame
+    canvas = tk.Canvas(frame)
+    canvas.pack(side="left", fill="both", expand=True)
+
+    # Crear un scrollbar para el canvas
+    scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+    scrollbar.pack(side="right", fill="y")
+
+    # Configurar el scrollbar para que funcione con el canvas
+    canvas.configure(yscrollcommand=scrollbar.set)
+    canvas.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+    # Crear un frame dentro del canvas para mostrar los resultados
+    inner_frame = tk.Frame(canvas)
+    canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+    # Mostrar los resultados de la predicción en el frame
+    for image_file, (predicted_class, prediction_accuracy) in prediction_results.items():
+        result_label = tk.Label(inner_frame, text=f"Imagen: {image_file} - Clase: {predicted_class} - Precisión: {prediction_accuracy}%")
+        result_label.pack()
+
+    # Configurar el canvas para que se pueda hacer scrolling
+    canvas.configure(scrollregion=canvas.bbox("all"))
+
+    # Mostrar la ventana de resultados
+    result_window.mainloop()
 
 # Crear ventana con botones
 window = tk.Tk()
 window.title("IA de clasificación de imágenes")
 window.geometry("300x200")
+screen_width = window.winfo_screenwidth()
+screen_height = window.winfo_screenheight()
+window.geometry(f"{screen_width}x{screen_height}")
 
 btn_entrenar = tk.Button(window, text="Entrenar", command=entrenar_modelo)
 btn_entrenar.pack()
@@ -186,19 +210,4 @@ btn_entrenar.pack()
 btn_prediccion = tk.Button(window, text="Hacer predicción", command=hacer_prediccion)
 btn_prediccion.pack()
 
-# def capture_image():
-#     cap = cv2.VideoCapture(2)  # Abre la cámara
-#     ret, frame = cap.read()  # Captura un fotograma
-#     if ret:
-#         cv2.imwrite('webcam/image.png', frame)  # Guarda la imagen capturada
-#         cap.release()  # Libera la cámara
-#         cv2.destroyAllWindows()  # Cierra todas las ventanas abiertas por OpenCV
-
-
-# btn_captura = tk.Button(window, text="Tomar foto", command=lambda: capture_image())
-# btn_captura.pack()
-
 window.mainloop()
-
-
-
